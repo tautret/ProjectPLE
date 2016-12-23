@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
@@ -14,7 +16,6 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Reader;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -22,7 +23,10 @@ import org.apache.hadoop.util.Tool;
 
 public class KmeansAlgo extends Configured implements Tool {
 
-	static HashMap<IntWritable, LongWritable> pivots = new HashMap<IntWritable, LongWritable>();
+	static HashMap<IntWritable, LongWritable> center = new HashMap<IntWritable, LongWritable>();
+	static HashMap<IntWritable, LongWritable> old_center = new HashMap<IntWritable, LongWritable>();
+
+	boolean isChanged = false;
 
 	public static final long measureDistance(long pivot, long point) {
 		long sum = 0;
@@ -43,7 +47,7 @@ public class KmeansAlgo extends Configured implements Tool {
 				LongWritable value_cache = (LongWritable) ReflectionUtils.newInstance(reader.getValueClass(), conf);
 
 				while (reader.next(key_cache, value_cache)) {
-					pivots.put(key_cache, value_cache);
+					center.put(key_cache, value_cache);
 				}
 			} finally {
 				IOUtils.closeStream(reader);
@@ -53,7 +57,7 @@ public class KmeansAlgo extends Configured implements Tool {
 		public void map(IntWritable key, LongWritable value, Context context) throws IOException, InterruptedException {
 			Long min = Long.MAX_VALUE;
 			IntWritable pivot = null;
-			for (Map.Entry<IntWritable, LongWritable> entry : pivots.entrySet()) {
+			for (Map.Entry<IntWritable, LongWritable> entry : center.entrySet()) {
 				long distance = measureDistance(entry.getValue().get(), value.get());
 				if (pivot == null) {
 					pivot = entry.getKey();
@@ -69,15 +73,35 @@ public class KmeansAlgo extends Configured implements Tool {
 		}
 	}
 
-	public static class KmeansReducer extends Reducer<IntWritable, Iterable<LongWritable>, IntWritable, LongWritable> {
-		public void reduce(Text key, Iterable<IntWritable> values, Context context)
+	public static class KmeansReducer extends Reducer<IntWritable, Iterable<LongWritable>, IntWritable, List<LongWritable>> {
+		public void reduce(IntWritable key, Iterable<LongWritable> values, Context context)
 				throws IOException, InterruptedException {
-			
+			List<LongWritable> points = new ArrayList<LongWritable>();
+			long sum = 0L;
+			old_center.get(key).set(center.get(key).get());
+			int nb_points = 0;
+			for(LongWritable v : values){
+				sum += v.get();
+				++nb_points;
+				points.add(v);
+			}
+			long new_point = sum / nb_points;
+			center.get(key).set(new_point);
+			context.write(key, points);
 		}
 	}
 
 	public int run(String[] arg0) throws Exception {
-		// TODO Auto-generated method stub
+		
+		Iterator<Map.Entry<IntWritable, LongWritable>> it = center.entrySet().iterator();
+		for(Map.Entry<IntWritable, LongWritable> d : old_center.entrySet()){
+			Map.Entry<IntWritable,LongWritable> tmp = it.next();
+			if(Math.abs(tmp.getValue().get() - d.getValue().get()) <= 0.1){
+				isChanged = true;
+			} else {
+				break;
+			}
+		}
 		return 0;
 	}
 
