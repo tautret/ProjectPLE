@@ -3,6 +3,7 @@ package bigdata.kmeans2;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -10,23 +11,37 @@ import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.io.SequenceFile.Reader;
+import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Tool;
+
+import bigdata.io.Point2DWritable;
+import bigdata.io.RandomInputFormat;
+import bigdata.io.TPInputFormat;
+import bigdata.io.PointsGenerator.IdentityMapper;
+import bigdata.io.PointsGenerator.InputReducer;
 
 public class KmeansAlgo extends Configured implements Tool {
 
 	static HashMap<IntWritable, LongWritable> center = new HashMap<IntWritable, LongWritable>();
 	static HashMap<IntWritable, LongWritable> old_center = new HashMap<IntWritable, LongWritable>();
 
-	boolean isChanged = false;
+	boolean isChanged = true;
 
 	public static final long measureDistance(long pivot, long point) {
 		long sum = 0;
@@ -73,14 +88,15 @@ public class KmeansAlgo extends Configured implements Tool {
 		}
 	}
 
-	public static class KmeansReducer extends Reducer<IntWritable, Iterable<LongWritable>, IntWritable, List<LongWritable>> {
+	public static class KmeansReducer
+			extends Reducer<IntWritable, Iterable<LongWritable>, IntWritable, List<LongWritable>> {
 		public void reduce(IntWritable key, Iterable<LongWritable> values, Context context)
 				throws IOException, InterruptedException {
 			List<LongWritable> points = new ArrayList<LongWritable>();
 			long sum = 0L;
 			old_center.get(key).set(center.get(key).get());
 			int nb_points = 0;
-			for(LongWritable v : values){
+			for (LongWritable v : values) {
 				sum += v.get();
 				++nb_points;
 				points.add(v);
@@ -91,15 +107,29 @@ public class KmeansAlgo extends Configured implements Tool {
 		}
 	}
 
-	public int run(String[] arg0) throws Exception {
-		
-		Iterator<Map.Entry<IntWritable, LongWritable>> it = center.entrySet().iterator();
-		for(Map.Entry<IntWritable, LongWritable> d : old_center.entrySet()){
-			Map.Entry<IntWritable,LongWritable> tmp = it.next();
-			if(Math.abs(tmp.getValue().get() - d.getValue().get()) <= 0.1){
-				isChanged = true;
-			} else {
-				break;
+	public int run(String args[]) throws Exception {
+		while (isChanged == true) {
+			Configuration conf = getConf();
+			Job job = Job.getInstance(conf,"Kmeans Algo");
+			job.setJarByClass(KmeansAlgo.class);
+			job.setMapperClass(KmeansMapper.class);
+			job.setReducerClass(KmeansReducer.class);
+			job.setMapOutputKeyClass(IntWritable.class);
+			job.setMapOutputValueClass(LongWritable.class);
+			job.setOutputKeyClass(IntWritable.class);
+			job.setOutputValueClass(List.class);
+			job.setInputFormatClass(TextInputFormat.class);
+			job.setOutputFormatClass(TextOutputFormat.class);
+			job.waitForCompletion(true);
+			Iterator<Map.Entry<IntWritable, LongWritable>> it = center.entrySet().iterator();
+			for (Map.Entry<IntWritable, LongWritable> d : old_center.entrySet()) {
+				Map.Entry<IntWritable, LongWritable> tmp = it.next();
+				if (Math.abs(tmp.getValue().get() - d.getValue().get()) <= 0.1) {
+					isChanged = false;
+				} else {
+					isChanged = true;
+					break;
+				}
 			}
 		}
 		return 0;
