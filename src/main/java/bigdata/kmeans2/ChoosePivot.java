@@ -23,7 +23,7 @@ import org.apache.hadoop.util.Tool;
 public class ChoosePivot extends Configured implements Tool {
 	private Configuration _conf;
 
-	public void ChooseNbPivot(Configuration c, String in, String out, int nb)
+	public void ChooseNbPivot(Configuration c, String in, String out, int nb, int num_colonne)
 			throws IOException, InterruptedException, URISyntaxException {
 
 		int i = 0;
@@ -45,7 +45,8 @@ public class ChoosePivot extends Configured implements Tool {
 			reader = new SequenceFile.Reader(conf, Reader.file(path_in), Reader.bufferSize(4096), Reader.start(0));
 			LongWritable value_read = (LongWritable) ReflectionUtils.newInstance(reader.getValueClass(), conf);
 			while ((reader.next(key, value)) && i < nb) {
-				writer.append(new IntWritable(i), value_read);
+				String tmp[] = value_read.toString().split(",");
+				writer.append(new IntWritable(i), tmp[num_colonne]);
 				i++;
 			}
 		} finally {
@@ -57,9 +58,10 @@ public class ChoosePivot extends Configured implements Tool {
 	public int run(String args[]) throws IOException, InterruptedException, URISyntaxException {
 
 		int nb_ligne = Integer.parseInt(args[2]);
+		int num_colonne = Integer.parseInt(args[3]);
 		Configuration conf = getConf();
 		Job job = Job.getInstance(conf, "ChoosePivot");
-		ChooseNbPivot(conf, args[0], args[1], nb_ligne);
+		ChooseNbPivot(conf, args[0], args[1], nb_ligne, num_colonne);
 		job.addCacheFile(new Path(args[1]).toUri());
 
 		return 0;
