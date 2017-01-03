@@ -19,18 +19,17 @@ import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 
 public class ChoosePivot extends Configured implements Tool {
-	private Configuration _conf;
-
-	public void ChooseNbPivot(Configuration c, String in, String out, int nb, int num_colonne)
+	public void ChooseNbPivot(Configuration c, String in, int nb, int num_colonne)
 			throws IOException, InterruptedException, URISyntaxException {
 
 		int i = 0;
 		Configuration conf = new Configuration();
 		FileSystem fs = FileSystem.get(conf);
 		Path path_in = new Path(in);
-		Path path_out = new Path(out);
+		Path path_out = new Path("cache");
 		SequenceFile.Reader reader = null;
 		SequenceFile.Writer writer = null;
 		IntWritable key = new IntWritable();
@@ -61,9 +60,14 @@ public class ChoosePivot extends Configured implements Tool {
 		int num_colonne = Integer.parseInt(args[3]);
 		Configuration conf = getConf();
 		Job job = Job.getInstance(conf, "ChoosePivot");
-		ChooseNbPivot(conf, args[0], args[1], nb_ligne, num_colonne);
+		ChooseNbPivot(conf, args[0], nb_ligne, num_colonne);
 		job.addCacheFile(new Path(args[1]).toUri());
-
 		return 0;
+
+	}
+	
+	public static void main(String args[]) throws Exception {
+		ToolRunner.run(new ChoosePivot(), args);
+		ToolRunner.run(new KmeansAlgo(), args);
 	}
 }

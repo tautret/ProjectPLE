@@ -3,7 +3,6 @@ package bigdata.kmeans2;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -11,30 +10,23 @@ import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.io.SequenceFile.Reader;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.Tool;
 
-import bigdata.io.Point2DWritable;
-import bigdata.io.RandomInputFormat;
-import bigdata.io.TPInputFormat;
-import bigdata.io.PointsGenerator.IdentityMapper;
-import bigdata.io.PointsGenerator.InputReducer;
 
 public class KmeansAlgo extends Configured implements Tool {
 
@@ -89,7 +81,7 @@ public class KmeansAlgo extends Configured implements Tool {
 	}
 
 	public static class KmeansReducer
-			extends Reducer<IntWritable, Iterable<LongWritable>, IntWritable, List<LongWritable>> {
+			extends Reducer<IntWritable, Iterable<LongWritable>, Text, Text> {
 		public void reduce(IntWritable key, Iterable<LongWritable> values, Context context)
 				throws IOException, InterruptedException {
 			List<LongWritable> points = new ArrayList<LongWritable>();
@@ -103,7 +95,7 @@ public class KmeansAlgo extends Configured implements Tool {
 			}
 			long new_point = sum / nb_points;
 			center.get(key).set(new_point);
-			context.write(key, points);
+			context.write(new Text(key.toString()), new Text(values.toString()));
 		}
 	}
 
@@ -116,11 +108,23 @@ public class KmeansAlgo extends Configured implements Tool {
 			job.setReducerClass(KmeansReducer.class);
 			job.setMapOutputKeyClass(IntWritable.class);
 			job.setMapOutputValueClass(LongWritable.class);
+			
+			try {
+				FileInputFormat.addInputPath(job, new Path(args[0]));
+				FileOutputFormat.setOutputPath(job, new Path(args[1]));
+				conf.setInt("steps", Integer.parseInt(args[2]));
+			} 
+			catch (Exception e) {
+				System.out.println(" bad arguments, waiting for 3 arguments [inputURI] [outputURI][NB_STEPS");
+				return -1;
+			}
+			
 			job.setOutputKeyClass(IntWritable.class);
 			job.setOutputValueClass(List.class);
 			job.setInputFormatClass(TextInputFormat.class);
 			job.setOutputFormatClass(TextOutputFormat.class);
 			job.waitForCompletion(true);
+
 			Iterator<Map.Entry<IntWritable, LongWritable>> it = center.entrySet().iterator();
 			for (Map.Entry<IntWritable, LongWritable> d : old_center.entrySet()) {
 				Map.Entry<IntWritable, LongWritable> tmp = it.next();
