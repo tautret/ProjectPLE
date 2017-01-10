@@ -1,8 +1,9 @@
-package bigdata.kmeans2;
+package bigdata.Kmeans1D;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,8 +22,8 @@ import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Metadata;
 import org.apache.hadoop.io.SequenceFile.Reader;
 import org.apache.hadoop.io.SequenceFile.Writer;
-import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
@@ -43,26 +44,30 @@ public class KmeansAlgo extends Configured implements Tool {
 		return sum;
 	}
 
-	public void ChooseNbPivot(Configuration c, Path path_in, Path path_out, int nb_pivots, int num_colonne)
-			throws IOException, InterruptedException, URISyntaxException {
+	public void ChooseNbPivot(Configuration c, Path path_in, Path path_out,
+			int nb_pivots, int num_colonne) throws IOException,
+			InterruptedException, URISyntaxException {
 
 		int num = 0;
-		Configuration conf = new Configuration();
-		FileSystem fs = FileSystem.get(conf);
-		BufferedReader file_in = new BufferedReader(new InputStreamReader(fs.open(path_in)));
-		SequenceFile.Writer writer = SequenceFile.createWriter(conf, Writer.file(path_out),
-				Writer.keyClass(LongWritable.class), Writer.valueClass(DoubleWritable.class),
-				Writer.bufferSize(fs.getConf().getInt("io.file.buffer.size", 4096)),
-				Writer.replication(fs.getDefaultReplication(path_out)), Writer.blockSize(1073741824),
-				Writer.compression(SequenceFile.CompressionType.BLOCK, new DefaultCodec()), Writer.progressable(null),
-				Writer.metadata(new Metadata()));
+		URI uri = path_in.toUri();
+		FileSystem fs = FileSystem.get(uri, c, "hadoop");
+		BufferedReader file_in = new BufferedReader(new InputStreamReader(
+				fs.open(path_in)));
+		SequenceFile.Writer writer = SequenceFile.createWriter(c, 
+				Writer.file(path_out), Writer.keyClass(IntWritable.class), 
+				Writer.valueClass(DoubleWritable.class), 
+				Writer.bufferSize(fs.getConf().getInt("io.file.buffer.size", 4096)), 
+				Writer.replication(fs.getDefaultReplication(path_out)), 
+				Writer.blockSize(1073741824), Writer.compression(SequenceFile.CompressionType.BLOCK, new DefaultCodec()), 
+				Writer.progressable(null), Writer.metadata(new Metadata()));
 
-		HashSet<DoubleWritable> pivots = new HashSet<DoubleWritable>();
+		HashSet<Double> pivots = new HashSet<Double>();
 		for (int i = 0; i < nb_pivots; i++) {
 			try {
 				String line = file_in.readLine();
 				String tokens[] = line.split(",");
-				if (!pivots.add(new DoubleWritable(Double.parseDouble(tokens[num_colonne])))) {
+				double point = Double.parseDouble(tokens[num_colonne]);
+				if (!pivots.add(point)) {
 					i--;
 				}
 			} catch (NumberFormatException e) {
@@ -71,15 +76,16 @@ public class KmeansAlgo extends Configured implements Tool {
 			}
 
 		}
-		Iterator<DoubleWritable> it = pivots.iterator();
+		Iterator<Double> it = pivots.iterator();
 		while (it.hasNext()) {
-			writer.append(new IntWritable(num), it.next().get());
+			writer.append(new IntWritable(num), new DoubleWritable(it.next().doubleValue()));
 		}
+		writer.close();
 
 	}
 
 	public int run(String args[]) throws Exception {
-		Path in, out, new_pivots;
+		Path in, out, new_pivots, pivots;
 		int nb_pivot, nb_colonne;
 		Configuration conf = getConf();
 		FileSystem fs = FileSystem.get(conf);
@@ -90,19 +96,23 @@ public class KmeansAlgo extends Configured implements Tool {
 			nb_pivot = Integer.parseInt(args[2]);
 			nb_colonne = Integer.parseInt(args[3]);
 			new_pivots = new Path(args[1] + "_newpivots.txt");
+			pivots = new Path(args[1] +"_pivots.txt");
 			conf.setInt("num_col", nb_colonne);
-			conf.set("path pivot", args[1] + "_pivots.txt");
+			conf.set("path pivot", pivots.toString());
+			conf.set("path new pivot", new_pivots.toString());
 		} catch (Exception e) {
-			System.out.println(" bad arguments, waiting for 4 arguments [inputURI] [outputURI][NB_PIVOTS][NUM_COL]");
+			System.out
+					.println(" bad arguments, waiting for 4 arguments [inputURI] [outputURI][NB_PIVOTS][NUM_COL]");
 			return -1;
 		}
 
-		ChooseNbPivot(conf, in, out, nb_pivot, nb_colonne);
+		ChooseNbPivot(conf, in, pivots, nb_pivot, nb_colonne);
 
 		while (isChanged == true) {
 
 			Job job = Job.getInstance(conf, "Kmeans Algo");
-			job.addCacheFile(out.toUri());
+			job.addCacheFile(pivots.toUri());
+			job.setNumReduceTasks(1);
 			job.setJarByClass(KmeansAlgo.class);
 			job.setMapperClass(KmeansMapper.class);
 			job.setReducerClass(KmeansReducer.class);
@@ -114,12 +124,12 @@ public class KmeansAlgo extends Configured implements Tool {
 			job.setOutputFormatClass(TextOutputFormat.class);
 			FileInputFormat.addInputPath(job, in);
 			FileOutputFormat.setOutputPath(job, out);
-			job.addCacheFile(new Path(args[1] + "_pivots.txt").toUri());
-			fs.delete(in, true);
-			fs.rename(new_pivots, in);
 			job.waitForCompletion(true);
+			fs.delete(pivots,true);
+			fs.rename(new_pivots, pivots);
 
-			SequenceFile.Reader reader = new SequenceFile.Reader(conf, Reader.file(new Path(args[1] + "_pivots.txt")),
+			SequenceFile.Reader reader = new SequenceFile.Reader(conf,
+					Reader.file(new_pivots),
 					Reader.bufferSize(4096), Reader.start(0));
 			IntWritable key = new IntWritable();
 			DoubleWritable value = new DoubleWritable();
@@ -137,6 +147,10 @@ public class KmeansAlgo extends Configured implements Tool {
 			IOUtils.closeStream(reader);
 		}
 		return 0;
+	}
+
+	public static void main(String[] args) throws Exception {
+		ToolRunner.run(new KmeansAlgo(), args);
 	}
 
 }

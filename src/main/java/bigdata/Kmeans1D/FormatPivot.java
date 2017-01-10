@@ -1,4 +1,4 @@
-package bigdata.kmeans2;
+package bigdata.Kmeans1D;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -11,10 +11,13 @@ public class FormatPivot implements Writable {
 	private double point;
 	private String text;
 	
-	public FormatPivot(double _point, String _text){
+	public FormatPivot(){}
+
+	public FormatPivot(double _point, String _text) {
 		this.point = _point;
 		this.text = _text;
 	}
+
 	public void write(DataOutput out) throws IOException {
 		out.writeDouble(point);
 		out.writeChars(text);
@@ -25,10 +28,11 @@ public class FormatPivot implements Writable {
 		point = in.readDouble();
 		text = in.readLine();
 	}
-	
+
 	public double getPoint() {
 		return point;
 	}
+
 	public String getText() {
 		return text;
 	}
