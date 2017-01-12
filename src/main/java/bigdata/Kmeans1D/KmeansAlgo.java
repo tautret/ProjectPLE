@@ -13,6 +13,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IOUtils;
@@ -28,6 +29,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -39,9 +41,7 @@ public class KmeansAlgo extends Configured implements Tool {
 	boolean isChanged = true;
 
 	public static final double measureDistance(double pivot, double point) {
-		long sum = 0;
-		sum = (long) Math.abs(pivot - point);
-		return sum;
+		return Math.abs(pivot - point);
 	}
 
 	public void ChooseNbPivot(Configuration c, Path path_in, Path path_out,
@@ -76,16 +76,19 @@ public class KmeansAlgo extends Configured implements Tool {
 			}
 
 		}
-		Iterator<Double> it = pivots.iterator();
-		while (it.hasNext()) {
-			writer.append(new IntWritable(num), new DoubleWritable(it.next().doubleValue()));
+		
+		for(Double s : pivots){
+			center.put(new IntWritable(num),  new DoubleWritable(s.doubleValue()));
+			writer.append(new IntWritable(num), new DoubleWritable(s.doubleValue()));
+			num++;
 		}
+
 		writer.close();
 
 	}
 
 	public int run(String args[]) throws Exception {
-		Path in, out, new_pivots, pivots;
+		Path in, out, new_pivots, pivots, tmp_out;
 		int nb_pivot, nb_colonne;
 		Configuration conf = getConf();
 		FileSystem fs = FileSystem.get(conf);
@@ -95,11 +98,12 @@ public class KmeansAlgo extends Configured implements Tool {
 			out = new Path(args[1]);
 			nb_pivot = Integer.parseInt(args[2]);
 			nb_colonne = Integer.parseInt(args[3]);
+			tmp_out = new Path(args[1] + "_tmp.txt");
 			new_pivots = new Path(args[1] + "_newpivots.txt");
 			pivots = new Path(args[1] +"_pivots.txt");
 			conf.setInt("num_col", nb_colonne);
 			conf.set("path pivot", pivots.toString());
-			conf.set("path new pivot", new_pivots.toString());
+			conf.set("path tmp out", tmp_out.toString());
 		} catch (Exception e) {
 			System.out
 					.println(" bad arguments, waiting for 4 arguments [inputURI] [outputURI][NB_PIVOTS][NUM_COL]");
@@ -108,7 +112,7 @@ public class KmeansAlgo extends Configured implements Tool {
 
 		ChooseNbPivot(conf, in, pivots, nb_pivot, nb_colonne);
 
-		while (isChanged == true) {
+		while (isChanged) {
 
 			Job job = Job.getInstance(conf, "Kmeans Algo");
 			job.addCacheFile(pivots.toUri());
@@ -118,35 +122,48 @@ public class KmeansAlgo extends Configured implements Tool {
 			job.setReducerClass(KmeansReducer.class);
 			job.setMapOutputKeyClass(IntWritable.class);
 			job.setMapOutputValueClass(FormatPivot.class);
-			job.setOutputKeyClass(Text.class);
-			job.setOutputValueClass(IntWritable.class);
+			job.setOutputKeyClass(IntWritable.class);
+			job.setOutputValueClass(DoubleWritable.class);
 			job.setInputFormatClass(TextInputFormat.class);
-			job.setOutputFormatClass(TextOutputFormat.class);
+			job.setOutputFormatClass(SequenceFileOutputFormat.class);
 			FileInputFormat.addInputPath(job, in);
-			FileOutputFormat.setOutputPath(job, out);
+			FileOutputFormat.setOutputPath(job, tmp_out);
 			job.waitForCompletion(true);
+			FileUtil.copyMerge(fs, tmp_out, fs, out, true, conf, "");
+			isDone(out);
 			fs.delete(pivots,true);
-			fs.rename(new_pivots, pivots);
+			fs.rename(out, pivots);
 
-			SequenceFile.Reader reader = new SequenceFile.Reader(conf,
-					Reader.file(new_pivots),
-					Reader.bufferSize(4096), Reader.start(0));
-			IntWritable key = new IntWritable();
-			DoubleWritable value = new DoubleWritable();
-			double sum_newCenter = 0;
-			double sum_oldCenter = 0;
-			while (reader.next(key, value)) {
-				sum_newCenter += value.get();
-			}
-			for (Map.Entry<IntWritable, DoubleWritable> d : center.entrySet()) {
-				sum_oldCenter += d.getValue().get();
-			}
-			if (Double.compare(sum_oldCenter, sum_newCenter) < 0.1) {
-				isChanged = false;
-			}
-			IOUtils.closeStream(reader);
 		}
 		return 0;
+	}
+	
+	public void isDone(Path out) throws IOException{
+		Configuration conf = getConf();
+		SequenceFile.Reader reader = new SequenceFile.Reader(conf,
+				Reader.file(out),
+				Reader.bufferSize(4096), Reader.start(0));
+		
+		IntWritable key = new IntWritable();
+		DoubleWritable value = new DoubleWritable();
+		double sum_newCenter = 0;
+		double sum_oldCenter = 0;
+		while (reader.next(key, value)) {
+			System.out.println("Num :"+ key.toString() +" Pivots :" + value.toString());
+			sum_newCenter += value.get();
+			key = new IntWritable();
+			value = new DoubleWritable();
+			System.out.println("New : " + sum_newCenter);
+		}
+		for (Map.Entry<IntWritable, DoubleWritable> d : center.entrySet()) {
+			sum_oldCenter += d.getValue().get();
+			System.out.println("Old : " + sum_oldCenter);
+		}
+		if (Double.compare(sum_newCenter, sum_oldCenter) < 0.1) {
+			System.out.println("Fini "+ Double.compare(sum_newCenter, sum_oldCenter));
+			isChanged = false;
+		}
+		IOUtils.closeStream(reader);
 	}
 
 	public static void main(String[] args) throws Exception {

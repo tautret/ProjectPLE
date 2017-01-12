@@ -2,6 +2,7 @@ package bigdata.Kmeans1D;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
@@ -17,6 +18,8 @@ import org.apache.hadoop.mapreduce.Mapper;
 
 public class KmeansMapper extends
 		Mapper<LongWritable, Text, IntWritable, FormatPivot> {
+	static HashMap<IntWritable, DoubleWritable> center = new HashMap<IntWritable, DoubleWritable>();
+
 	protected void setup(Context context) throws IOException {
 		/* Recovery pivots in the Distributed Cache */
 		URI[] files = context.getCacheFiles();
@@ -29,7 +32,9 @@ public class KmeansMapper extends
 			IntWritable key_cache = new IntWritable();
 			DoubleWritable value_cache = new DoubleWritable();
 			while (reader.next(key_cache, value_cache)) {
-				KmeansAlgo.center.put(key_cache, value_cache);
+				center.put(key_cache, value_cache);
+				key_cache = new IntWritable();
+				value_cache = new DoubleWritable();
 			}
 		} finally {
 			IOUtils.closeStream(reader);
@@ -38,27 +43,21 @@ public class KmeansMapper extends
 
 	public void map(LongWritable key, Text value, Context context)
 			throws IOException, InterruptedException {
-		double min = Double.MAX_VALUE;
-		IntWritable pivot = null;
 		int num_col = context.getConfiguration().getInt("num_col", 0);
 		String tokens[] = value.toString().split(",");
+		Double best_dist = null ;
+		IntWritable best_pivot = null;
 		try {
 			double point = Double.parseDouble(tokens[num_col]);
-			for (Map.Entry<IntWritable, DoubleWritable> entry : KmeansAlgo.center
-					.entrySet()) {
-				double distance = KmeansAlgo.measureDistance(entry.getValue()
-						.get(), point);
-				if (pivot == null) {
-					pivot = entry.getKey();
-					min = distance;
-				} else {
-					if (min > distance) {
-						min = distance;
-						pivot = entry.getKey();
-					}
+			for(IntWritable p : center.keySet()){
+				DoubleWritable tmp_point = center.get(p);
+				Double distance = KmeansAlgo.measureDistance(tmp_point.get(), point);
+				if(best_pivot == null || distance < best_dist){
+					best_dist = distance;
+					best_pivot = p;
 				}
 			}
-			context.write(pivot, new FormatPivot(point, value.toString()));
+			context.write(best_pivot, new FormatPivot(point, value.toString()));
 		} catch (Exception e) {
 			// TODO: handle exception
 		}
