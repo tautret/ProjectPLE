@@ -50,7 +50,7 @@ public class MergeMapper extends Mapper<LongWritable, Text, IntWritable, Text> {
 			double point = Double.parseDouble(tokens[num_col]);
 			for (IntWritable p : center.keySet()) {
 				DoubleWritable tmp_point = center.get(p);
-				Double distance = KmeansAlgo.measureDistance(tmp_point.get(),
+				Double distance = KmeansnD.measureDistance(tmp_point.get(),
 						point);
 				if (best_pivot == null || distance < best_dist) {
 					best_dist = distance;

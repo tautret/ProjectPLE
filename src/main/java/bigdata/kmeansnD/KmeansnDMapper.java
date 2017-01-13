@@ -15,7 +15,7 @@ import org.apache.hadoop.io.SequenceFile.Reader;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Mapper;
 
-public class KmeansMapper extends
+public class KmeansnDMapper extends
 		Mapper<LongWritable, Text, IntWritable, DoubleWritable> {
 	static HashMap<IntWritable, DoubleWritable> center = new HashMap<IntWritable, DoubleWritable>();
 
@@ -50,7 +50,7 @@ public class KmeansMapper extends
 			double point = Double.parseDouble(tokens[num_col]);
 			for (IntWritable p : center.keySet()) {
 				DoubleWritable tmp_point = center.get(p);
-				Double distance = KmeansAlgo.measureDistance(tmp_point.get(),point);
+				Double distance = KmeansnD.measureDistance(tmp_point.get(),point);
 				if (best_pivot == null || distance < best_dist) {
 					best_dist = distance;
 					best_pivot = p;

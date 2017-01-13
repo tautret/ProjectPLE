@@ -5,8 +5,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
@@ -33,9 +35,9 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-public class KmeansAlgo extends Configured implements Tool {
+public class KmeansnD extends Configured implements Tool {
 
-	static HashMap<IntWritable, DoubleWritable> center = new HashMap<IntWritable, DoubleWritable>();
+	static HashMap<IntWritable, FormatPivot> center = new HashMap<IntWritable, FormatPivot>();
 
 	boolean isChanged = true;
 
@@ -44,7 +46,7 @@ public class KmeansAlgo extends Configured implements Tool {
 	}
 
 	public void ChooseNbPivot(Configuration c, Path path_in, Path path_out,
-			int nb_pivots, int num_colonne) throws IOException,
+			int nb_pivots, int[] nb_colonne) throws IOException,
 			InterruptedException, URISyntaxException {
 
 		int num = 0;
@@ -61,13 +63,17 @@ public class KmeansAlgo extends Configured implements Tool {
 				SequenceFile.CompressionType.BLOCK, new DefaultCodec()), Writer
 				.progressable(null), Writer.metadata(new Metadata()));
 
-		HashSet<Double> pivots = new HashSet<Double>();
+		HashSet<List<Double>> pivots = new HashSet<List<Double>>();
 		for (int i = 0; i < nb_pivots; i++) {
 			try {
 				String line = file_in.readLine();
 				String tokens[] = line.split(",");
-				double point = Double.parseDouble(tokens[num_colonne]);
-				if (!pivots.add(point)) {
+				List<Double> tmp = new ArrayList<Double>();
+				for(int x = 0; x < nb_colonne.length ; x++){
+					tmp.add(Double.parseDouble(tokens[nb_colonne[x]]));
+				}
+				pivots.add(tmp);
+				if (tmp.size() <= 2) {
 					i--;
 				}
 			} catch (NumberFormatException e) {
@@ -77,7 +83,10 @@ public class KmeansAlgo extends Configured implements Tool {
 			}
 
 		}
-
+		for(int i = 0 ; i < pivots.size(); i++){
+			List<Double> tmpList = pivots.iterator().next();
+			for(Double s :)
+		}
 		for (Double s : pivots) {
 			center.put(new IntWritable(num),
 					new DoubleWritable(s.doubleValue()));
@@ -94,7 +103,8 @@ public class KmeansAlgo extends Configured implements Tool {
 
 	public int run(String args[]) throws Exception {
 		Path in, out, pivots, tmp_out;
-		int nb_pivot, nb_colonne;
+		int nb_pivot;
+		int[] nb_colonne;
 		Configuration conf = getConf();
 		FileSystem fs = FileSystem.get(conf);
 
@@ -102,7 +112,9 @@ public class KmeansAlgo extends Configured implements Tool {
 			in = new Path(args[0]);
 			out = new Path(args[1]);
 			nb_pivot = Integer.parseInt(args[2]);
-			nb_colonne = Integer.parseInt(args[3]);
+			for(int x = 0 ; x < args.length;x++){
+				nb_colonne[x] = Integer.parseInt(args[x+3]);
+			}
 			tmp_out = new Path(args[1] + "_tmp.txt");
 			pivots = new Path(args[1] + "_pivots.txt");
 			//conf.set("path pivot", pivots.toString());
@@ -121,10 +133,10 @@ public class KmeansAlgo extends Configured implements Tool {
 			Job job = Job.getInstance(conf, "Kmeans Algo");
 			job.addCacheFile(pivots.toUri());
 			job.setNumReduceTasks(1);
-			job.setJarByClass(KmeansAlgo.class);
-			job.setMapperClass(KmeansMapper.class);
-			job.setCombinerClass(KmeansCombiner.class);
-			job.setReducerClass(KmeansReducer.class);
+			job.setJarByClass(KmeansnD.class);
+			job.setMapperClass(KmeansnDMapper.class);
+			job.setCombinerClass(KmeansnDCombiner.class);
+			job.setReducerClass(KmeansnDReducer.class);
 			job.setMapOutputKeyClass(IntWritable.class);
 			job.setMapOutputValueClass(DoubleWritable.class);
 			job.setOutputKeyClass(IntWritable.class);
@@ -144,7 +156,7 @@ public class KmeansAlgo extends Configured implements Tool {
 		Job job = Job.getInstance(conf, "Merge file");
 		job.setNumReduceTasks(1);
 		job.addCacheFile(pivots.toUri());
-		job.setJarByClass(KmeansAlgo.class);
+		job.setJarByClass(KmeansnD.class);
 		job.setMapperClass(MergeMapper.class);
 		job.setReducerClass(MergeReducer.class);
 		job.setMapOutputKeyClass(IntWritable.class);
@@ -192,7 +204,7 @@ public class KmeansAlgo extends Configured implements Tool {
 	}
 
 	public static void main(String[] args) throws Exception {
-		ToolRunner.run(new KmeansAlgo(), args);
+		ToolRunner.run(new KmeansnD(), args);
 	}
 
 }
