@@ -59,7 +59,7 @@ public class MergeMapper extends Mapper<LongWritable, Text, IntWritable, Text> {
 			}
 			for (IntWritable p : center.keySet()) {
 				FormatPivot formatPivot = center.get(p);
-				Double distance = KmeansnD.measureDistance(formatPivot.getList_point(), tmp_list, n_dim);
+				Double distance = KmeansnD.measureDistance(formatPivot.getList_point(), tmp_list);
 				if (best_pivot == null || distance < best_dist) {
 					best_dist = distance;
 					best_pivot = p;

@@ -50,7 +50,7 @@ public class KmeansnDMapper extends Mapper<LongWritable, Text, IntWritable, Form
 		String tokens[] = value.toString().split(",");
 		Double best_dist = null;
 		IntWritable best_pivot = null;
-		List<Double> tmp_list = new ArrayList<Double>();
+		List<Double> tmp_list = new ArrayList<Double>(n_dim);
 		
 		try {
 			tmp_list = new ArrayList<Double>(n_dim);
@@ -59,14 +59,14 @@ public class KmeansnDMapper extends Mapper<LongWritable, Text, IntWritable, Form
 			}
 			for (IntWritable p : center.keySet()) {
 				FormatPivot formatPivot = center.get(p);
-				Double distance = KmeansnD.measureDistance(formatPivot.getList_point(), tmp_list, n_dim);
+				Double distance = KmeansnD.measureDistance(formatPivot.getList_point(), tmp_list);
 				if (best_pivot == null || distance < best_dist) {
 					best_dist = distance;
 					best_pivot = p;
 				}
 			}
 			context.write(best_pivot, new FormatPivot(tmp_list,n_dim));
-
+			
 		} catch (NumberFormatException e) {
 		} catch (Exception e) {
 		}

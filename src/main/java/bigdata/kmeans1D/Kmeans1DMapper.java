@@ -51,7 +51,7 @@ public class Kmeans1DMapper extends
 			for (IntWritable p : center.keySet()) {
 				DoubleWritable tmp_point = center.get(p);
 				Double distance = Kmeans1D.measureDistance(tmp_point.get(),point);
-				if (best_pivot == null || distance < best_dist) {
+				if (best_pivot == null || distance <= best_dist) {
 					best_dist = distance;
 					best_pivot = p;
 				}

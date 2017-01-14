@@ -40,16 +40,13 @@ public class KmeansnD extends Configured implements Tool {
 	static HashMap<IntWritable, FormatPivot> center = new HashMap<IntWritable, FormatPivot>();
 
 	boolean isChanged = true;
-	public static final double measureDistance(List<Double> point1, List<Double> point2, int n_dim) {
-		double sum1 = 0;
-		double sum2 = 0;
-		for(Double p1 : point1){
-			sum1 += p1.doubleValue();
+
+	public static final Double measureDistance(List<Double> point1, List<Double> point2) {
+		double somme = 0;
+		for (int i = 0; i < point1.size(); i++) {
+			somme += point1.get(i) - point2.get(i);
 		}
-		for(Double p2 : point2){
-			sum2 += p2.doubleValue();
-		}
-		return Math.abs(sum1 - sum2);
+		return Math.abs(somme);
 	}
 
 	public void ChooseNbPivot(Configuration c, Path path_in, Path path_out, int nb_pivots, int[] nb_colonne)
@@ -86,7 +83,7 @@ public class KmeansnD extends Configured implements Tool {
 
 		}
 		for (List<Double> tmpList : pivots) {
-			FormatPivot tmp = new FormatPivot(tmpList,nb_colonne.length);
+			FormatPivot tmp = new FormatPivot(tmpList, nb_colonne.length);
 			center.put(new IntWritable(num), tmp);
 			writer.append(new IntWritable(num), tmp);
 			num++;
@@ -181,20 +178,19 @@ public class KmeansnD extends Configured implements Tool {
 		while (reader.next(key, value)) {
 			System.out.println("Num :" + key.toString() + " Pivots :" + value.getListToString());
 			tmp_center.put(key, value);
-			for(Double points : value.getList_point()){
-				sum_newCenter += points.doubleValue() ;
+			for (Double points : value.getList_point()) {
+				sum_newCenter += points.doubleValue();
 			}
 			key = new IntWritable();
 			value = new FormatPivot();
 		}
 		for (Map.Entry<IntWritable, FormatPivot> d : center.entrySet()) {
-			for(Double p : d.getValue().getList_point()){
+			System.out.println("Num Pivot :" + d.getKey().toString() + "Pivots :" + d.getValue().getListToString());
+			for (Double p : d.getValue().getList_point()) {
 				sum_oldCenter += p.doubleValue();
 			}
 		}
-		for (Map.Entry<IntWritable, FormatPivot> d : center.entrySet()) {
-			System.out.println("Num Pivot :" + d.getKey().toString() + "Pivots :" + d.getValue().getListToString());
-		}
+
 		double sum = sum_oldCenter - sum_newCenter;
 		if (sum <= 0.1 && sum >= -0.1) {
 			isChanged = false;

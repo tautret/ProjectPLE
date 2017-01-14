@@ -24,12 +24,12 @@
   			<configuration>
   				<archive>
   					<manifest>
-  						<mainClass>bigdata.Kmeans1D.KmeansAlgo</mainClass>
+  						<mainClass>bigdata.kmeansnD.KmeansnD</mainClass>
   					</manifest>
   				</archive>
   			</configuration>
   		</plugin>
   	</plugins>
   </build>
-  <artifactId>Kmeans1D</artifactId>
+  <artifactId>kmeansnD</artifactId>
 </project>
