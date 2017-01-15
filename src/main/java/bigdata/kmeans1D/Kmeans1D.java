@@ -83,8 +83,6 @@ public class Kmeans1D extends Configured implements Tool {
 					new DoubleWritable(s.doubleValue()));
 			writer.append(new IntWritable(num),
 					new DoubleWritable(s.doubleValue()));
-			System.out.println("Num pivot : " + num + " point : "
-					+ s.doubleValue());
 			num++;
 		}
 
@@ -171,15 +169,17 @@ public class Kmeans1D extends Configured implements Tool {
 		DoubleWritable value = new DoubleWritable();
 		double sum_newCenter = 0;
 		double sum_oldCenter = 0;
+		System.out.println("Nouveaux pivots :");
 		while (reader.next(key, value)) {
-			System.out.println("Num :" + key.toString() + " Pivots :"
-					+ value.toString());
+			System.out.println("Numéro Pivot :" + key.toString() + " Points :" + value.toString());
 			tmp_center.put(key, value);
 			sum_newCenter += value.get();
 			key = new IntWritable();
 			value = new DoubleWritable();
 		}
+		System.out.println("Anciens pivots :");
 		for (Map.Entry<IntWritable, DoubleWritable> d : center.entrySet()) {
+			System.out.println("Numéro Pivot :" + d.getKey().toString() + " Point :" + d.getValue().get());
 			sum_oldCenter += d.getValue().get();
 		}
 		double sum = sum_oldCenter - sum_newCenter;

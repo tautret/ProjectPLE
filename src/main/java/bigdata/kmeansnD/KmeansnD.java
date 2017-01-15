@@ -16,7 +16,6 @@ import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.NullWritable;
@@ -175,8 +174,9 @@ public class KmeansnD extends Configured implements Tool {
 		FormatPivot value = new FormatPivot();
 		double sum_newCenter = 0;
 		double sum_oldCenter = 0;
+		System.out.println("Nouveaux pivots :");
 		while (reader.next(key, value)) {
-			System.out.println("Num :" + key.toString() + " Pivots :" + value.getListToString());
+			System.out.println("Numéro Pivot :" + key.toString() + " Points :" + value.getListToString());
 			tmp_center.put(key, value);
 			for (Double points : value.getList_point()) {
 				sum_newCenter += points.doubleValue();
@@ -185,7 +185,7 @@ public class KmeansnD extends Configured implements Tool {
 			value = new FormatPivot();
 		}
 		for (Map.Entry<IntWritable, FormatPivot> d : center.entrySet()) {
-			System.out.println("Num Pivot :" + d.getKey().toString() + "Pivots :" + d.getValue().getListToString());
+			System.out.println("Numéro Pivot :" + d.getKey().toString() + " Point :" + d.getValue().getListToString());
 			for (Double p : d.getValue().getList_point()) {
 				sum_oldCenter += p.doubleValue();
 			}
